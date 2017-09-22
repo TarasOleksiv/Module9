@@ -8,5 +8,6 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class Thumbnails {
+    // використовуєм лише medium
     public Medium medium;
 }

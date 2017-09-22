@@ -1,8 +1,6 @@
 package ua.goit.java8.module9.task1and2;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.mashape.unirest.http.HttpResponse;
-import com.mashape.unirest.http.ObjectMapper;
 import com.mashape.unirest.http.Unirest;
 import com.mashape.unirest.http.exceptions.UnirestException;
 import javafx.application.Platform;
@@ -28,27 +26,30 @@ import java.net.URL;
  * Created by Taras on 21.09.2017.
  */
 public class GraphicInterface {
-    private Stage primaryStage;
-    private Pane root = new Pane();
-    private DateUtils dateUtils = new DateUtils();
     public static final int WIDTH = 900;
     public static final int HEIGHT = 825;
+    private Stage primaryStage;
+    private Pane root = new Pane();
     private Label labelTitleValue = new Label();
     private Label labelChannelTitleValue = new Label();
     private Label labelPublishedAtValue = new Label();
     private WebView webview = new WebView();
     private Button view = new Button();
-    private String videoId;
-    private String url;
     private Image image = null;
     private ImageView imageView = new ImageView(image);
 
-    private static String URL = "http://www.youtube.com/embed/";
-    private static String AUTO_PLAY = "?autoplay=1";
+    private DateUtils dateUtils = new DateUtils();
+    private String videoId;
+    private String url;
+
+    private static final String URL = "http://www.youtube.com/embed/";
+    private static final String AUTO_PLAY = "?autoplay=1";
+    private static final String SEARCH_LINK = "https://www.googleapis.com/youtube/v3/search";
+    private static final String MY_KEY = "AIzaSyDwu_AH-9_PNHCKIiIzJ-uqXGwNWOfAURw";
+
 
     public GraphicInterface(Stage primaryStage) {
         this.primaryStage = primaryStage;
-        initGraphicInterface();
         draw(primaryStage);
     }
 
@@ -65,6 +66,7 @@ public class GraphicInterface {
         keyWord.setText("Mark Knopfler");
         root.getChildren().add(keyWord);
 
+        // кнопка пошуку
         Button search = new Button();
         search.setTranslateX(20);
         search.setTranslateY(20);
@@ -99,6 +101,7 @@ public class GraphicInterface {
         });
         root.getChildren().add(search);
 
+        // область для трансляції відео
         webview.setTranslateX(100);
         webview.setTranslateY(100);
         webview.setPrefWidth(700);
@@ -129,6 +132,7 @@ public class GraphicInterface {
         labelPublishedAt.setText("Дата публікації:");
         root.getChildren().add(labelPublishedAt);
 
+        // назва відео
         labelTitleValue.setTranslateX(250);
         labelTitleValue.setTranslateY(650);
         labelTitleValue.setPrefWidth(300);
@@ -136,6 +140,7 @@ public class GraphicInterface {
         labelTitleValue.setText("");
         root.getChildren().add(labelTitleValue);
 
+        // назва каналу
         labelChannelTitleValue.setTranslateX(250);
         labelChannelTitleValue.setTranslateY(680);
         labelChannelTitleValue.setPrefWidth(300);
@@ -143,6 +148,7 @@ public class GraphicInterface {
         labelChannelTitleValue.setText("");
         root.getChildren().add(labelChannelTitleValue);
 
+        // дата публікації
         labelPublishedAtValue.setTranslateX(250);
         labelPublishedAtValue.setTranslateY(710);
         labelPublishedAtValue.setPrefWidth(300);
@@ -150,6 +156,7 @@ public class GraphicInterface {
         labelPublishedAtValue.setText("");
         root.getChildren().add(labelPublishedAtValue);
 
+        // кнопка перегляду відео
         view.setTranslateX(740);
         view.setTranslateY(650);
         view.setPrefWidth(60);
@@ -165,6 +172,7 @@ public class GraphicInterface {
         });
         root.getChildren().add(view);
 
+        // поле виводу зображення
         imageView.setTranslateX(600);
         imageView.setTranslateY(650);
         imageView.setFitWidth(100);
@@ -175,36 +183,14 @@ public class GraphicInterface {
         primaryStage.show();
     }
 
-    private void initGraphicInterface() {
-        Unirest.setObjectMapper(new ObjectMapper() {
-            private com.fasterxml.jackson.databind.ObjectMapper jacksonObjectMapper
-                    = new com.fasterxml.jackson.databind.ObjectMapper();
-
-            public <T> T readValue(String value, Class<T> valueType) {
-                try {
-                    return jacksonObjectMapper.readValue(value, valueType);
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
-            }
-
-            public String writeValue(Object value) {
-                try {
-                    return jacksonObjectMapper.writeValueAsString(value);
-                } catch (JsonProcessingException e) {
-                    throw new RuntimeException(e);
-                }
-            }
-        });
-    }
-
+    // пошук відео
     private void getSearch(String q) throws UnirestException {
-        HttpResponse<SearchResponse> response = Unirest.get("https://www.googleapis.com/youtube/v3/search")
+        HttpResponse<SearchResponse> response = Unirest.get(SEARCH_LINK)
                 .queryString("part", "snippet")
                 .queryString("q", q)
-                .queryString("maxResults", "3")
+                .queryString("maxResults", "1")
                 .queryString("type", "video")
-                .queryString("key", "AIzaSyDwu_AH-9_PNHCKIiIzJ-uqXGwNWOfAURw")
+                .queryString("key", MY_KEY)
                 .asObject(SearchResponse.class);
         SearchResponse searchResponse = response.getBody();
         final Search item = searchResponse.items.get(0);
@@ -214,16 +200,18 @@ public class GraphicInterface {
             labelPublishedAtValue.setText("\"" + dateUtils.convertDateToString(item.snippet.publishedAt) + "\"");
         });
         videoId = item.id.videoId;
-        url = item.snippet.thumbnails.medium.url;
+        url = item.snippet.thumbnails.medium.url;   // шукаєм зображення роздільної здатності medium
         //System.out.println(item.snippet.thumbnails.medium.url);
     }
 
+    // запуск відео
     private void showVideo(String videoId){
         webview.getEngine().load(
                 URL+videoId+AUTO_PLAY
         );
     }
 
+    // вивід зображення
     private void drawImage(URL url) throws IOException {
         image = new Image(url.openStream());
         Platform.runLater(() -> {
