@@ -18,5 +18,6 @@ public class Main extends Application {
     public void start(Stage primaryStage) throws Exception {
         MyObjectMapper myObjectMapper = new MyObjectMapper();
         GraphicInterface graphicInterface = new GraphicInterface(primaryStage);
+        graphicInterface.draw();
     }
 }

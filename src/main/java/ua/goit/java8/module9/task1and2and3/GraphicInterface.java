@@ -1,8 +1,5 @@
 package ua.goit.java8.module9.task1and2and3;
 
-import com.mashape.unirest.http.HttpResponse;
-import com.mashape.unirest.http.Unirest;
-import com.mashape.unirest.http.exceptions.UnirestException;
 import javafx.application.Platform;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
@@ -15,60 +12,44 @@ import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.scene.web.WebView;
 import javafx.stage.Stage;
-import ua.goit.java8.module9.utils.DateUtils;
-import ua.goit.java8.module9.youtube.entities.Search;
-import ua.goit.java8.module9.youtube.entities.SearchResponse;
-
-import java.io.IOException;
-import java.net.URL;
-
 
 /**
  * Created by Taras on 21.09.2017.
  */
+
 public class GraphicInterface {
-    public static final int WIDTH = 900;
-    public static final int HEIGHT = 825;
+    private static final int WIDTH = 900;
+    private static final int HEIGHT = 825;
     private Stage primaryStage;
     private Pane root = new Pane();
+
     private Label labelTitleValue = new Label();
     private Label labelChannelTitleValue = new Label();
     private Label labelPublishedAtValue = new Label();
     private Label labelCount = new Label();
+    private TextField keyWord = new TextField();
     private TextField textMaxResults = new TextField();
-    private WebView webview = new WebView();
+    private TextField textDaysPublished = new TextField();
     private Button view = new Button();
     private Button next = new Button();
     private Image image = null;
     private ImageView imageView = new ImageView(image);
-
-    private SearchResponse searchResponse;
-
-    private DateUtils dateUtils = new DateUtils();
-    private String videoId;
-    private String url;
-    private int currentResult = -1;
-    private int maxResults = 3;     // по замовчуванню, максимальна кількість - 50.
-    private int publishedAfter = -3650;  // по замовчуванню, кількість днів що пройшла з моменту публікації
-
-    private static final String URL = "http://www.youtube.com/embed/";
-    private static final String AUTO_PLAY = "?autoplay=1";
-    private static final String SEARCH_LINK = "https://www.googleapis.com/youtube/v3/search";
-    private static final String MY_KEY = "AIzaSyDwu_AH-9_PNHCKIiIzJ-uqXGwNWOfAURw";
+    private WebView webview = new WebView();
 
 
     public GraphicInterface(Stage primaryStage) {
         this.primaryStage = primaryStage;
-        draw(primaryStage);
     }
 
-    public void draw(Stage primaryStage) {
+    public void draw() {
+
+        InterfaceOperations interfaceOperations = new InterfaceOperations(this);
+
         primaryStage.setWidth(WIDTH);
         primaryStage.setHeight(HEIGHT);
         primaryStage.setTitle("YouTube Search");
 
         // текстове поле для пошуку відео за ключовим словом
-        TextField keyWord = new TextField();
         keyWord.setTranslateX(100);
         keyWord.setTranslateY(20);
         keyWord.setPrefWidth(300);
@@ -102,7 +83,6 @@ public class GraphicInterface {
         root.getChildren().add(labelDaysPublished);
 
         // кількість днів з моменту публікації
-        TextField textDaysPublished = new TextField();
         textDaysPublished.setTranslateX(750);
         textDaysPublished.setTranslateY(50);
         textDaysPublished.setPrefWidth(50);
@@ -111,51 +91,14 @@ public class GraphicInterface {
         root.getChildren().add(textDaysPublished);
 
 
-        // кнопка пошуку
+        // кнопка пошуку відео
         Button search = new Button();
         search.setTranslateX(20);
         search.setTranslateY(20);
         search.setPrefWidth(60);
         search.setText("Search");
         search.setOnMouseClicked(event -> {
-            new Thread(()->{
-                Platform.runLater(()->{
-                    view.setDisable(true);
-                    next.setDisable(true);
-                    clearLabels();
-                    webview.getEngine().load(null);
-                });
-
-                // maxResults повинно бути в проміжку [1;50]
-                maxResults = Math.min(Math.max(Integer.parseInt(textMaxResults.getText()),1),50);
-                // publishedAfter повинно бути < 0
-                publishedAfter = Math.min(-Integer.parseInt(textDaysPublished.getText()),-1);
-
-                try {
-                    searchResponse = getResponse(keyWord.getText(), maxResults, publishedAfter);
-                    if (!checkNullResponse(searchResponse)){
-                        showResult(searchResponse,0);
-                    } else {
-                        currentResult = -1;
-                    }
-                } catch (UnirestException e) {
-                    e.printStackTrace();
-                }
-
-                if (url != null) {
-                    new Thread(() -> {
-                        try {
-                            drawImage(new URL(url));
-                        } catch (IOException e) {
-                            e.printStackTrace();
-                        }
-                    }).start();
-                }
-                Platform.runLater(()->{
-                    view.setDisable(false);
-                    next.setDisable(false);
-                });
-            }).start();
+            new Thread(interfaceOperations::searchVideo).start();
         });
         root.getChildren().add(search);
 
@@ -243,27 +186,7 @@ public class GraphicInterface {
         next.setText("Next");
         next.setDisable(true);
         next.setOnMouseClicked(event -> {
-            new Thread(()->{
-                Platform.runLater(()->{
-                    view.setDisable(true);
-                    clearLabels();
-                    webview.getEngine().load(null);
-                });
-
-                showResult(searchResponse,getNextResultNumber(currentResult,searchResponse.items.size()));
-
-                new Thread(()->{
-                    try {
-                        drawImage(new URL(url));
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                }).start();
-
-                Platform.runLater(()->{
-                    view.setDisable(false);
-                });
-            }).start();
+            new Thread(interfaceOperations::showNext).start();
         });
         root.getChildren().add(next);
 
@@ -277,7 +200,7 @@ public class GraphicInterface {
             new Thread(()->{
                 Platform.runLater(()->{
                     view.setDisable(true);
-                    showVideo(videoId);
+                    interfaceOperations.showVideo();
                 });
             }).start();
         });
@@ -294,80 +217,17 @@ public class GraphicInterface {
         primaryStage.show();
     }
 
-    // отримання результатів пошуку
-    private SearchResponse getResponse(String q, int maxResults, int publishedAfter) throws UnirestException {
-        HttpResponse<SearchResponse> response = Unirest.get(SEARCH_LINK)
-                .queryString("part", "snippet")
-                .queryString("q", q)
-                .queryString("maxResults", maxResults)
-                .queryString("publishedAfter", dateUtils.getRFC3339DateString(publishedAfter))
-                .queryString("type", "video")
-                .queryString("key", MY_KEY)
-                .asObject(SearchResponse.class);
-        return response.getBody();
-    }
-
-    // вивід i-го результату пошуку на екран
-    private void showResult(SearchResponse searchResponse, int i){
-        final Search item = searchResponse.items.get(i);
-        final int count = i + 1;
-        final int total = searchResponse.items.size();
-        Platform.runLater(()-> {
-            labelTitleValue.setText("\"" + item.snippet.title + "\"");
-            labelChannelTitleValue.setText("\"" + item.snippet.channelTitle + "\"");
-            labelPublishedAtValue.setText("\"" + dateUtils.convertDateToString(item.snippet.publishedAt) + "\"");
-            labelCount.setText(count + " (з " + total + ")");
-            textMaxResults.setText(Integer.toString(maxResults));
-        });
-        videoId = item.id.videoId;
-        url = item.snippet.thumbnails.medium.url;   // шукаєм зображення роздільної здатності medium
-        currentResult = i;
-    }
-
-    // запуск відео
-    private void showVideo(String videoId){
-        webview.getEngine().load(
-                URL+videoId+AUTO_PLAY
-        );
-    }
-
-    // вивід зображення
-    private void drawImage(URL url) throws IOException {
-        image = new Image(url.openStream());
-        Platform.runLater(() -> {
-            imageView.setImage(image);
-        });
-    }
-
-    private void clearLabels(){
-        labelTitleValue.setText("");
-        labelChannelTitleValue.setText("");
-        labelPublishedAtValue.setText("");
-        labelCount.setText("");
-        imageView.setImage(null);
-    }
-
-    private int getNextResultNumber(int currentNumber, int maxMunber){
-        return (currentNumber < maxMunber - 1)?currentNumber + 1:0;
-    }
-
-    private boolean checkNullResponse(SearchResponse searchResponse){
-        if ((searchResponse == null) || (searchResponse.items.size() == 0)){
-            Platform.runLater(() -> {
-                next.setDisable(true);
-                view.setDisable(true);
-                imageView.setImage(null);
-                labelTitleValue.setText("");
-                labelChannelTitleValue.setText("");
-                labelPublishedAtValue.setText("");
-                labelCount.setText("0 рез.");
-                webview.getEngine().load(null);
-                url = null;
-            });
-            return true;
-        } else {
-            return false;
-        }
-    }
+    public Label getLabelTitleValue(){return labelTitleValue;}
+    public Label getLabelChannelTitleValue(){return labelChannelTitleValue;}
+    public Label getLabelPublishedAtValue(){return labelPublishedAtValue;}
+    public Label getLabelCount(){return labelCount;}
+    public TextField getKeyWord(){return keyWord;}
+    public TextField getTextMaxResults(){return textMaxResults;}
+    public TextField getTextDaysPublished(){return textDaysPublished;}
+    public Button getView(){return view;}
+    public Button getNext(){return next;}
+    public Image getImage(){return image;}
+    public ImageView getImageView(){return imageView;}
+    public WebView getWebview(){return webview;}
 
 }
